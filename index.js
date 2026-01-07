@@ -1,118 +1,97 @@
-require('dotenv').config();
+require("dotenv").config();
 
-const PRIVATE_APP_ACCESS = process.env.PRIVATE_APP_ACCESS;
-// const CUSTOM_OBJECT_NAME = process.env.CUSTOM_OBJECT_NAME;
+const path = require("path");
+const express = require("express");
+const axios = require("axios");
 
-const path = require('path');
-const express = require('express');
-const axios = require('axios');
 const app = express();
 
+// ENV
+const PRIVATE_APP_ACCESS = process.env.PRIVATE_APP_ACCESS;
+const PORT = process.env.PORT || 3000;
 
-app.set('view engine', 'pug');
-app.use(express.static(__dirname + '/public'));
+// Custom object + properties (internal names)
+const CUSTOM_OBJECT_TYPE = "2-51544776";
+const PROPERTIES = ["name", "house", "family_type"];
+
+// Basic validation (helps debugging)
+if (!PRIVATE_APP_ACCESS) {
+  console.error("Missing PRIVATE_APP_ACCESS in your .env file.");
+}
+
+// View engine
+app.set("view engine", "pug");
+app.set("views", path.join(__dirname, "views"));
+
+// Middleware
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 
-// * Please DO NOT INCLUDE the private app access token in your repo. Don't do this practicum in your normal account.
+// Static CSS at /css/style.css -> public/css/style.css
+app.use("/css", express.static(path.join(__dirname, "public/css")));
 
-app.set('views', path.join(__dirname, 'views'));
-
-// TODO: ROUTE 1 - Create a new app.get route for the homepage to call your custom object data. Pass this data along to the front-end and create a new pug template in the views folder.
-
-app.get('/', async (req, res) => {
-    const url = `https://api.hubapi.com/crm/v3/objects/characters`;
-    const headers = {
-        Authorization: `Bearer ${PRIVATE_APP_ACCESS}`,
-        'Content-Type': 'application/json'
-    };
-
-    try {
-        const response = await axios.get(url, { headers });
-        const data = response.data.results;  // array of custom object records
-        res.render('homepage', { title: 'My Custom Objects', data });
-    } catch (error) {
-        console.error(error);
-        res.send('Error fetching custom objects. Check console.');
-    }
+// Axios client for HubSpot
+const hubspot = axios.create({
+  baseURL: "https://api.hubapi.com",
+  headers: {
+    Authorization: `Bearer ${PRIVATE_APP_ACCESS}`,
+    "Content-Type": "application/json",
+  },
 });
 
-// TODO: ROUTE 2 - Create a new app.get route for the form to create or update new custom object data. Send this data along in the next route.
+// ROUTE 1: Homepage - list custom object records in a table
+app.get("/", async (req, res) => {
+  try {
+    const response = await hubspot.get(`/crm/v3/objects/${CUSTOM_OBJECT_TYPE}`, {
+      params: {
+        limit: 100,
+        properties: PROPERTIES.join(","),
+      },
+    });
 
-app.get('/update-cobj', (req, res) => {
-    res.render('updates', { title: 'Update Custom Object Form | Integrating With HubSpot I Practicum' });
+    const data = response.data.results || [];
+
+    res.render("homepage", {
+      title: "Homepage | Integrating With HubSpot I Practicum",
+      data,
+    });
+  } catch (error) {
+    console.error("GET / error:", error?.response?.data || error.message);
+    res.status(500).send("Error fetching custom objects. Check console.");
+  }
 });
 
+// ROUTE 2: Form page to create a new record
+app.get("/update-cobj", (req, res) => {
+  res.render("updates", {
+    title: "Update Custom Object Form | Integrating With HubSpot I Practicum",
+  });
+});
 
-// TODO: ROUTE 3 - Create a new app.post route for the custom objects form to create or update your custom object data. Once executed, redirect the user to the homepage.
-
-app.post('/update-cobj', async (req, res) => {
+// ROUTE 3: Handle form submission - create record, then redirect home
+app.post("/update-cobj", async (req, res) => {
+  try {
     const { name, house, family_type } = req.body;
 
     const payload = {
-        properties: { name, house, family_type }  
+      properties: {
+        name,
+        house,
+        family_type,
+      },
     };
 
-    const url = `https://api.hubapi.com/crm/v3/objects/characters`;
-    const headers = {
-        Authorization: `Bearer ${PRIVATE_APP_ACCESS}`,
-        'Content-Type': 'application/json'
-    };
+    await hubspot.post(`/crm/v3/objects/${CUSTOM_OBJECT_TYPE}`, payload);
 
-    try {
-        await axios.post(url, payload, { headers });
-        res.redirect('/');
-    } catch (error) {
-        console.error(error.response?.data || error);
-        res.send('Failed to create record. Check console for details.');
-    }
+    // Required: redirect to homepage after create
+    res.redirect("/");
+  } catch (error) {
+    console.error("POST /update-cobj error:", error?.response?.data || error.message);
+    res.status(500).send("Failed to create record. Check console for details.");
+  }
 });
 
-
-/** 
-* * This is sample code to give you a reference for how you should structure your calls. 
-
-* * App.get sample
-app.get('/contacts', async (req, res) => {
-    const contacts = 'https://api.hubspot.com/crm/v3/objects/contacts';
-    const headers = {
-        Authorization: `Bearer ${PRIVATE_APP_ACCESS}`,
-        'Content-Type': 'application/json'
-    }
-    try {
-        const resp = await axios.get(contacts, { headers });
-        const data = resp.data.results;
-        res.render('contacts', { title: 'Contacts | HubSpot APIs', data });      
-    } catch (error) {
-        console.error(error);
-    }
+// Localhost
+app.listen(PORT, () => {
+  console.log(`Listening on http://localhost:${PORT}`);
 });
-
-* * App.post sample
-app.post('/update', async (req, res) => {
-    const update = {
-        properties: {
-            "favorite_book": req.body.newVal
-        }
-    }
-
-    const email = req.query.email;
-    const updateContact = `https://api.hubapi.com/crm/v3/objects/contacts/${email}?idProperty=email`;
-    const headers = {
-        Authorization: `Bearer ${PRIVATE_APP_ACCESS}`,
-        'Content-Type': 'application/json'
-    };
-
-    try { 
-        await axios.patch(updateContact, update, { headers } );
-        res.redirect('back');
-    } catch(err) {
-        console.error(err);
-    }
-
-});
-*/
-
-
-// * Localhost
-app.listen(3000, () => console.log('Listening on http://localhost:3000'));
