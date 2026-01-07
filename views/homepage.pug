@@ -1,0 +1,32 @@
+doctype html
+html
+  head
+    title= title
+    link(rel="stylesheet", href="/css/style.css")
+    style.
+      table, th, td {
+        border: 1px solid black;
+        border-collapse: collapse;
+      }
+      th, td {
+        padding: 8px;
+      }
+  body
+    a(href="/update-cobj") Add to this table
+    h1= title
+
+    if !data || data.length === 0
+      p No records found yet.
+    else
+      table
+        thead
+          tr
+            th Name
+            th House
+            th Family Type
+        tbody
+          each record in data
+            tr
+              td= record.properties.name || ""
+              td= record.properties.house || ""
+              td= record.properties.family_type || ""

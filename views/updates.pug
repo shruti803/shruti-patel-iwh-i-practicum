@@ -1,0 +1,20 @@
+doctype html
+html
+  head
+    title= title
+  body
+    h1= title
+    form(action="/update-cobj" method="POST")
+      div
+        label(for="name") Name:
+        input(type="text" name="name" required)
+      div
+        label(for="house") House:
+        input(type="text" name="house")
+      div
+        label(for="family_type") Family Type:
+        input(type="text" name="family_type")
+      div
+        button(type="submit") Submit
+    br
+    a(href="/") Return to the homepage
